@@ -49,23 +49,17 @@ FILES[doap.rdf]=manual
 
 # These files can be updated automatically:
 FILES[ApacheThrift.nuspec]=simpleReplace
-FILES[CMakeLists.txt]=simpleReplace
-FILES[Thrift.podspec]=simpleReplace
 FILES[appveyor.yml]=simpleReplace
 FILES[bower.json]=jsonReplace
+FILES[CMakeLists.txt]=simpleReplace
+FILES[compiler/cpp/src/thrift/version.h]=simpleReplace
 FILES[configure.ac]=configureReplace
+FILES[contrib/Rebus/Properties/AssemblyInfo.cs]=simpleReplace
 FILES[contrib/thrift.spec]=simpleReplace
+FILES[contrib/zeromq/csharp/AssemblyInfo.cs]=simpleReplace
+FILES[contrib/thrift-maven-plugin/pom.xml]=pomReplace
 FILES[doc/specs/idl.md]=simpleReplace
 FILES[lib/as3/gradle.properties]=simpleReplace
-FILES[lib/csharp/ThriftMSBuildTask/Properties/AssemblyInfo.cs]=simpleReplace
-FILES[lib/csharp/ThriftMSBuildTask/ThriftMSBuildTask.csproj]=simpleReplace
-FILES[lib/csharp/src/Properties/AssemblyInfo.cs]=simpleReplace
-FILES[lib/csharp/src/Thrift.csproj]=simpleReplace
-FILES[lib/csharp/test/Multiplex/Client/MultiplexClient.csproj]=simpleReplace
-FILES[lib/csharp/test/Multiplex/Client/Properties/AssemblyInfo.cs]=simpleReplace
-FILES[lib/csharp/test/Multiplex/Server/MultiplexServer.csproj]=simpleReplace
-FILES[lib/csharp/test/Multiplex/Server/Properties/AssemblyInfo.cs]=simpleReplace
-FILES[lib/csharp/test/ThriftMVCTest/Properties/AssemblyInfo.cs]=simpleReplace
 FILES[lib/d/src/thrift/base.d]=simpleReplace
 FILES[lib/dart/pubspec.yaml]=pubspecReplace
 FILES[lib/delphi/src/Thrift.pas]=simpleReplace
@@ -73,13 +67,14 @@ FILES[lib/erl/src/thrift.app.src]=simpleReplace
 FILES[lib/haxe/haxelib.json]=simpleReplace
 FILES[lib/hs/thrift.cabal]=simpleReplace
 FILES[lib/java/gradle.properties]=simpleReplace
+FILES[lib/js/package-lock.json]=jsonReplace
 FILES[lib/js/package.json]=jsonReplace
 FILES[lib/js/src/thrift.js]=simpleReplace
 FILES[lib/lua/Thrift.lua]=simpleReplace
-FILES[lib/netcore/Thrift/Properties/AssemblyInfo.cs]=simpleReplace
-FILES[lib/netcore/Thrift/Transports/Client/THttpClientTransport.cs]=simpleReplace
+FILES[lib/netstd/Tests/Thrift.Tests/Thrift.Tests.csproj]=simpleReplace
+FILES[lib/netstd/Tests/Thrift.PublicInterfaces.Compile.Tests/Thrift.PublicInterfaces.Compile.Tests.csproj]=simpleReplace
+FILES[lib/netstd/Tests/Thrift.IntegrationTests/Thrift.IntegrationTests.csproj]=simpleReplace
 FILES[lib/netstd/Thrift/Properties/AssemblyInfo.cs]=simpleReplace
-FILES[lib/netstd/Thrift/Transports/Client/THttpClientTransport.cs]=simpleReplace
 FILES[lib/netstd/Thrift/Thrift.csproj]=simpleReplace
 FILES[lib/ocaml/_oasis]=simpleReplace
 FILES[lib/perl/lib/Thrift.pm]=simpleReplace
@@ -89,22 +84,28 @@ FILES[lib/rs/Cargo.toml]=simpleReplace
 FILES[lib/st/package.xml]=simpleReplace
 FILES[lib/swift/Sources/Thrift.swift]=simpleReplace
 FILES[lib/swift/Tests/ThriftTests/ThriftTests.swift]=simpleReplace
+FILES[lib/ts/package-lock.json]=jsonReplace
 FILES[lib/ts/package.json]=jsonReplace
+FILES[package-lock.json]=jsonReplace
 FILES[package.json]=jsonReplace
 FILES[sonar-project.properties]=simpleReplace
-FILES[test/csharp/Properties/AssemblyInfo.cs]=simpleReplace
-FILES[test/csharp/ThriftTest.csproj]=simpleReplace
 FILES[test/dart/test_client/pubspec.yaml]=pubspecReplace
 FILES[test/erl/src/thrift_test.app.src]=simpleReplace
-FILES[tutorial/csharp/CsharpClient/Properties/AssemblyInfo.cs]=simpleReplace
-FILES[tutorial/csharp/CsharpServer/Properties/AssemblyInfo.cs]=simpleReplace
+FILES[test/netstd/Client/Client.csproj]=simpleReplace
+FILES[test/netstd/Server/Server.csproj]=simpleReplace
+FILES[Thrift.podspec]=simpleReplace
 FILES[tutorial/dart/client/pubspec.yaml]=pubspecReplace
 FILES[tutorial/dart/console_client/pubspec.yaml]=pubspecReplace
 FILES[tutorial/dart/server/pubspec.yaml]=pubspecReplace
 FILES[tutorial/delphi/DelphiClient/DelphiClient.dproj]=simpleReplace
 FILES[tutorial/delphi/DelphiServer/DelphiServer.dproj]=simpleReplace
 FILES[tutorial/hs/ThriftTutorial.cabal]=simpleReplace
+FILES[tutorial/netstd/Client/Client.csproj]=simpleReplace
+FILES[tutorial/netstd/Interfaces/Interfaces.csproj]=simpleReplace
+FILES[tutorial/netstd/Server/Server.csproj]=simpleReplace
 FILES[tutorial/ocaml/_oasis]=simpleReplace
+
+
 
 if [ ! -f "CHANGES.md" ]; then
     >&2 echo "error: run veralign.sh while in the thrift root directory"
@@ -155,7 +156,7 @@ validateVersion "${NEWVERSION}" || exit $?
 #
 function escapeVersion
 {
-    echo "$(echo $1 | sed 's/\./\\./g' | sed 's/\[/\\\[/g' | sed 's/\]/\\\]/g')"
+    echo "$(echo "$1" | sed 's/\./\\./g' | sed 's/\[/\\\[/g' | sed 's/\]/\\\]/g')"
 }
 
 # Set up verbose hilighting if running interactive
@@ -236,6 +237,18 @@ function jsonReplace
 function pubspecReplace
 {
     replace "$1" "version: ${OLDVERSION}" "version: ${NEWVERSION}"
+}
+
+#
+# pomReplace: replace a specific version field in a maven pom file
+#   must be a top level "version" field in the xml structure
+# \param $1 filename to do replacements on
+# \returns 0 on success
+#
+
+function pomReplace
+{
+    replace "$1" "^  <version>${OLDVERSION}<\/version>" "  <version>${NEWVERSION}<\/version>"
 }
 
 #

@@ -3,11 +3,7 @@ import XCTest
 
 class ThriftTests: XCTestCase {
   func testVersion() {
-    XCTAssertEqual(Thrift().version, "0.13.0")
-  }
-
-  func test_in_addr_extension() {
-
+    XCTAssertEqual(Thrift().version, "0.15.0")
   }
 
   static var allTests : [(String, (ThriftTests) -> () throws -> Void)] {

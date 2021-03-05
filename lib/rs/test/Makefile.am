@@ -28,6 +28,7 @@ stubs: thrifts/Base_One.thrift thrifts/Base_Two.thrift thrifts/Midlayer.thrift t
 	$(THRIFT) -out src --gen rs $(top_builddir)/test/Identifiers.thrift #THRIFT-4953
 
 check: stubs
+	$(CARGO) fmt --all -- --check
 	$(CARGO) build
 	$(CARGO) test
 	[ -d bin ] || mkdir bin
@@ -41,6 +42,8 @@ clean-local:
 	-$(RM) src/base_two.rs
 	-$(RM) src/midlayer.rs
 	-$(RM) src/ultimate.rs
+	-$(RM) src/recursive.rs
+	-$(RM) src/identifiers.rs
 	-$(RM) -r bin
 
 EXTRA_DIST = \

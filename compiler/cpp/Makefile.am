@@ -45,6 +45,7 @@ thrift_SOURCES = src/thrift/audit/t_audit.cpp \
                  src/thrift/logging.h \
                  src/thrift/main.cc \
                  src/thrift/main.h \
+                 src/thrift/version.h \
                  src/thrift/parse/parse.cc \
                  src/thrift/parse/t_base_type.h \
                  src/thrift/parse/t_const.h \
@@ -68,11 +69,9 @@ thrift_SOURCES = src/thrift/audit/t_audit.cpp \
                  src/thrift/platform.h
 
 # Specific client generator source
-thrift_SOURCES += src/thrift/generate/t_as3_generator.cc \
-                  src/thrift/generate/t_c_glib_generator.cc \
+thrift_SOURCES += src/thrift/generate/t_c_glib_generator.cc \
                   src/thrift/generate/t_cl_generator.cc \
                   src/thrift/generate/t_cpp_generator.cc \
-                  src/thrift/generate/t_csharp_generator.cc \
                   src/thrift/generate/t_d_generator.cc \
                   src/thrift/generate/t_dart_generator.cc \
                   src/thrift/generate/t_delphi_generator.cc \
@@ -82,13 +81,12 @@ thrift_SOURCES += src/thrift/generate/t_as3_generator.cc \
                   src/thrift/generate/t_haxe_generator.cc \
                   src/thrift/generate/t_hs_generator.cc \
                   src/thrift/generate/t_html_generator.cc \
+                  src/thrift/generate/t_markdown_generator.cc \
                   src/thrift/generate/t_java_generator.cc \
                   src/thrift/generate/t_javame_generator.cc \
                   src/thrift/generate/t_js_generator.cc \
                   src/thrift/generate/t_json_generator.cc \
                   src/thrift/generate/t_lua_generator.cc \
-                  src/thrift/generate/t_netcore_generator.cc \
-                  src/thrift/generate/t_netcore_generator.h \
                   src/thrift/generate/t_netstd_generator.cc \
                   src/thrift/generate/t_netstd_generator.h \
                   src/thrift/generate/t_ocaml_generator.cc \
@@ -116,10 +114,11 @@ EXTRA_DIST = \
              README.md \
              CMakeLists.txt \
              test \
+             tests \
              $(WINDOWS_DIST)
 
-clean-local:
-	$(RM) version.h
+#clean-local:
+#	$(RM) version.h   -- do not delete, we need it
 
 src/thrift/main.cc: src/thrift/version.h
 

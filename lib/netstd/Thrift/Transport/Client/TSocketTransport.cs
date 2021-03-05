@@ -30,18 +30,15 @@ namespace Thrift.Transport.Client
         private bool _isDisposed;
 
 
-        public TSocketTransport(TcpClient client)
+        public TSocketTransport(TcpClient client, TConfiguration config)
+            : base(config)
         {
             TcpClient = client ?? throw new ArgumentNullException(nameof(client));
             SetInputOutputStream();
         }
 
-        public TSocketTransport(IPAddress host, int port)
-            : this(host, port, 0)
-        {
-        }
-
-        public TSocketTransport(IPAddress host, int port, int timeout)
+        public TSocketTransport(IPAddress host, int port, TConfiguration config, int timeout = 0)
+            : base(config)
         {
             Host = host;
             Port = port;
@@ -52,7 +49,8 @@ namespace Thrift.Transport.Client
             SetInputOutputStream();
         }
 
-        public TSocketTransport(string host, int port, int timeout = 0)
+        public TSocketTransport(string host, int port, TConfiguration config, int timeout = 0)
+            : base(config)
         {
             try
             {
@@ -60,8 +58,7 @@ namespace Thrift.Transport.Client
                 if (entry.AddressList.Length == 0)
                     throw new TTransportException(TTransportException.ExceptionType.Unknown, "unable to resolve host name");
 
-                var addr = entry.AddressList[0];
-                Host = new IPAddress(addr.GetAddressBytes(), addr.ScopeId);
+                Host = entry.AddressList[0];
                 Port = port;
 
                 TcpClient = new TcpClient(host, port);
@@ -84,7 +81,7 @@ namespace Thrift.Transport.Client
             }
         }
 
-    public TcpClient TcpClient { get; private set; }
+        public TcpClient TcpClient { get; private set; }
         public IPAddress Host { get; }
         public int Port { get; }
 
@@ -109,10 +106,7 @@ namespace Thrift.Transport.Client
 
         public override async Task OpenAsync(CancellationToken cancellationToken)
         {
-            if (cancellationToken.IsCancellationRequested)
-            {
-                await Task.FromCanceled(cancellationToken);
-            }
+            cancellationToken.ThrowIfCancellationRequested();
 
             if (IsOpen)
             {

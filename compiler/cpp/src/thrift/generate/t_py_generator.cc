@@ -52,6 +52,8 @@ public:
                  const std::map<std::string, std::string>& parsed_options,
                  const std::string& option_string)
     : t_generator (program) {
+    update_keywords();
+
     std::map<std::string, std::string>::const_iterator iter;
 
     gen_newstyle_ = true;
@@ -65,6 +67,7 @@ public:
     coding_ = "";
     gen_dynbaseclass_ = "";
     gen_dynbaseclass_exc_ = "";
+    gen_dynbaseclass_frozen_exc_ = "";
     gen_dynbaseclass_frozen_ = "";
     import_dynbase_ = "";
     package_prefix_ = "";
@@ -94,8 +97,11 @@ public:
         if( gen_dynbaseclass_exc_.empty()) {
           gen_dynbaseclass_exc_ = "TExceptionBase";
         }
+        if( gen_dynbaseclass_frozen_exc_.empty()) {
+          gen_dynbaseclass_frozen_exc_ = "TFrozenExceptionBase";
+        }
         if( import_dynbase_.empty()) {
-          import_dynbase_ = "from thrift.protocol.TBase import TBase, TFrozenBase, TExceptionBase, TTransport\n";
+          import_dynbase_ = "from thrift.protocol.TBase import TBase, TFrozenBase, TExceptionBase, TFrozenExceptionBase, TTransport\n";
         }
       } else if( iter->first.compare("dynbase") == 0) {
         gen_dynbase_ = true;
@@ -104,6 +110,8 @@ public:
         gen_dynbaseclass_frozen_ = (iter->second);
       } else if( iter->first.compare("dynexc") == 0) {
         gen_dynbaseclass_exc_ = (iter->second);
+      } else if( iter->first.compare("dynfrozenexc") == 0) {
+        gen_dynbaseclass_frozen_exc_ = (iter->second);
       } else if( iter->first.compare("dynimport") == 0) {
         gen_dynbase_ = true;
         import_dynbase_ = (iter->second);
@@ -244,8 +252,8 @@ public:
   std::string type_name(t_type* ttype);
   std::string function_signature(t_function* tfunction, bool interface = false);
   std::string argument_list(t_struct* tstruct,
-                            std::vector<std::string>* pre = NULL,
-                            std::vector<std::string>* post = NULL);
+                            std::vector<std::string>* pre = nullptr,
+                            std::vector<std::string>* post = nullptr);
   std::string type_to_enum(t_type* ttype);
   std::string type_to_spec_args(t_type* ttype);
 
@@ -269,7 +277,16 @@ public:
   }
 
   static bool is_immutable(t_type* ttype) {
-    return ttype->annotations_.find("python.immutable") != ttype->annotations_.end();
+    std::map<std::string, std::string>::iterator it = ttype->annotations_.find("python.immutable");
+
+    if (it == ttype->annotations_.end()) {
+      // Exceptions are immutable by default.
+      return ttype->is_xception();
+    } else if (it->second == "false") {
+      return false;
+    } else {
+      return true;
+    }
   }
 
 private:
@@ -288,6 +305,7 @@ private:
   std::string gen_dynbaseclass_;
   std::string gen_dynbaseclass_frozen_;
   std::string gen_dynbaseclass_exc_;
+  std::string gen_dynbaseclass_frozen_exc_;
 
   std::string import_dynbase_;
 
@@ -572,13 +590,13 @@ string t_py_generator::render_const_value(t_type* type, t_const_value* value) {
     const map<t_const_value*, t_const_value*, t_const_value::value_compare>& val = value->get_map();
     map<t_const_value*, t_const_value*, t_const_value::value_compare>::const_iterator v_iter;
     for (v_iter = val.begin(); v_iter != val.end(); ++v_iter) {
-      t_type* field_type = NULL;
+      t_type* field_type = nullptr;
       for (f_iter = fields.begin(); f_iter != fields.end(); ++f_iter) {
         if ((*f_iter)->get_name() == v_iter->first->get_string()) {
           field_type = (*f_iter)->get_type();
         }
       }
-      if (field_type == NULL) {
+      if (field_type == nullptr) {
         throw "type error: " + type->get_name() + " has no field " + v_iter->first->get_string();
       }
       indent(out) << render_const_value(g_type_string, v_iter->first) << ": "
@@ -742,7 +760,11 @@ void t_py_generator::generate_py_struct_definition(ostream& out,
   out << endl << endl << "class " << tstruct->get_name();
   if (is_exception) {
     if (gen_dynamic_) {
-      out << "(" << gen_dynbaseclass_exc_ << ")";
+      if (is_immutable(tstruct)) {
+        out << "(" << gen_dynbaseclass_frozen_exc_ << ")";
+      } else {
+        out << "(" << gen_dynbaseclass_exc_ << ")";
+      }
     } else {
       out << "(TException)";
     }
@@ -810,7 +832,7 @@ void t_py_generator::generate_py_struct_definition(ostream& out,
     for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
       // Initialize fields
       t_type* type = (*m_iter)->get_type();
-      if (!type->is_base_type() && !type->is_enum() && (*m_iter)->get_value() != NULL) {
+      if (!type->is_base_type() && !type->is_enum() && (*m_iter)->get_value() != nullptr) {
         indent(out) << "if " << (*m_iter)->get_name() << " is "
                     << "self.thrift_spec[" << (*m_iter)->get_key() << "][4]:" << endl;
         indent_up();
@@ -965,7 +987,7 @@ void t_py_generator::generate_py_struct_reader(ostream& out, t_struct* tstruct) 
       t_field* tfield = *f_iter;
       std::ostringstream result;
       result << tfield->get_name() << " = ";
-      if (tfield->get_value() != NULL) {
+      if (tfield->get_value() != nullptr) {
         result << render_field_default_value(tfield);
       } else {
         result << "None";
@@ -1116,7 +1138,7 @@ void t_py_generator::generate_service(t_service* tservice) {
 
   f_service_ << py_autogen_comment() << endl << py_imports() << endl;
 
-  if (tservice->get_extends() != NULL) {
+  if (tservice->get_extends() != nullptr) {
     f_service_ << "import "
                << get_real_py_module(tservice->get_extends()->get_program(), gen_twisted_, package_prefix_) << "."
                << tservice->get_extends()->get_name() << endl;
@@ -1150,7 +1172,7 @@ void t_py_generator::generate_service(t_service* tservice) {
 
   // Close service file
   f_service_ << "fix_spec(all_structs)" << endl
-             << "del all_structs" << endl << endl;
+             << "del all_structs" << endl;
   f_service_.close();
 }
 
@@ -1205,7 +1227,7 @@ void t_py_generator::generate_py_function_helpers(t_function* tfunction) {
 void t_py_generator::generate_service_interface(t_service* tservice) {
   string extends = "";
   string extends_if = "";
-  if (tservice->get_extends() != NULL) {
+  if (tservice->get_extends() != nullptr) {
     extends = type_name(tservice->get_extends());
     extends_if = "(" + extends + ".Iface)";
   } else {
@@ -1250,7 +1272,7 @@ void t_py_generator::generate_service_interface(t_service* tservice) {
 void t_py_generator::generate_service_client(t_service* tservice) {
   string extends = "";
   string extends_client = "";
-  if (tservice->get_extends() != NULL) {
+  if (tservice->get_extends() != nullptr) {
     extends = type_name(tservice->get_extends());
     if (gen_zope_interface_) {
       extends_client = "(" + extends + ".Client)";
@@ -1587,7 +1609,7 @@ void t_py_generator::generate_service_remote(t_service* tservice) {
   vector<t_function*> functions = tservice->get_functions();
   // Get all function from parents
   t_service* parent = tservice->get_extends();
-  while (parent != NULL) {
+  while (parent != nullptr) {
     vector<t_function*> p_functions = parent->get_functions();
     functions.insert(functions.end(), p_functions.begin(), p_functions.end());
     parent = parent->get_extends();
@@ -1796,7 +1818,7 @@ void t_py_generator::generate_service_server(t_service* tservice) {
 
   string extends = "";
   string extends_processor = "";
-  if (tservice->get_extends() != NULL) {
+  if (tservice->get_extends() != nullptr) {
     extends = type_name(tservice->get_extends());
     extends_processor = extends + ".Processor, ";
   }
@@ -2208,7 +2230,7 @@ void t_py_generator::generate_deserialize_field(ostream& out,
         } else if(!gen_utf8strings_) {
           out << "readString()";
         } else {
-          out << "readString().decode('utf-8') if sys.version_info[0] == 2 else iprot.readString()";
+          out << "readString().decode('utf-8', errors='replace') if sys.version_info[0] == 2 else iprot.readString()";
         }
         break;
       case t_base_type::TYPE_BOOL:
@@ -2587,7 +2609,7 @@ void t_py_generator::generate_python_docstring(ostream& out, t_doc* tdoc) {
 string t_py_generator::declare_argument(t_field* tfield) {
   std::ostringstream result;
   result << tfield->get_name() << "=";
-  if (tfield->get_value() != NULL) {
+  if (tfield->get_value() != nullptr) {
     result << render_field_default_value(tfield);
   } else {
     result << "None";
@@ -2602,7 +2624,7 @@ string t_py_generator::declare_argument(t_field* tfield) {
  */
 string t_py_generator::render_field_default_value(t_field* tfield) {
   t_type* type = get_true_type(tfield->get_type());
-  if (tfield->get_value() != NULL) {
+  if (tfield->get_value() != nullptr) {
     return render_const_value(type, tfield->get_value());
   } else {
     return "None";
@@ -2678,7 +2700,7 @@ string t_py_generator::type_name(t_type* ttype) {
   if (ttype->is_service()) {
     return get_real_py_module(program, gen_twisted_, package_prefix_) + "." + ttype->get_name();
   }
-  if (program != NULL && program != program_) {
+  if (program != nullptr && program != program_) {
     return get_real_py_module(program, gen_twisted_, package_prefix_) + ".ttypes." + ttype->get_name();
   }
   return ttype->get_name();
@@ -2774,6 +2796,7 @@ THRIFT_REGISTER_GENERATOR(
     "    dynbase=CLS      Derive generated classes from class CLS instead of TBase.\n"
     "    dynfrozen=CLS    Derive generated immutable classes from class CLS instead of TFrozenBase.\n"
     "    dynexc=CLS       Derive generated exceptions from CLS instead of TExceptionBase.\n"
+    "    dynfrozenexc=CLS Derive generated immutable exceptions from CLS instead of TFrozenExceptionBase.\n"
     "    dynimport='from foo.bar import CLS'\n"
     "                     Add an import line to generated code to find the dynbase class.\n"
     "    package_prefix='top.package.'\n"

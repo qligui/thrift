@@ -15,13 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::convert::TryFrom;
 use std::convert::{From, Into};
 use std::error::Error as StdError;
 use std::fmt::{Debug, Display, Formatter};
 use std::{error, fmt, io, string};
-use std::convert::TryFrom;
 
-use protocol::{TFieldIdentifier, TInputProtocol, TOutputProtocol, TStructIdentifier, TType};
+use crate::protocol::{
+    TFieldIdentifier, TInputProtocol, TOutputProtocol, TStructIdentifier, TType,
+};
 
 // FIXME: should all my error structs impl error::Error as well?
 // FIXME: should all fields in TransportError, ProtocolError and ApplicationError be optional?
@@ -197,7 +199,7 @@ impl Error {
     /// Application code **should never** call this method directly.
     pub fn read_application_error_from_in_protocol(
         i: &mut dyn TInputProtocol,
-    ) -> ::Result<ApplicationError> {
+    ) -> crate::Result<ApplicationError> {
         let mut message = "general remote error".to_owned();
         let mut kind = ApplicationErrorKind::Unknown;
 
@@ -235,10 +237,7 @@ impl Error {
 
         i.read_struct_end()?;
 
-        Ok(ApplicationError {
-            kind: kind,
-            message: message,
-        })
+        Ok(ApplicationError { kind, message })
     }
 
     /// Convert an `ApplicationError` into its wire representation and write
@@ -248,7 +247,7 @@ impl Error {
     pub fn write_application_error_to_out_protocol(
         e: &ApplicationError,
         o: &mut dyn TOutputProtocol,
-    ) -> ::Result<()> {
+    ) -> crate::Result<()> {
         o.write_struct_begin(&TStructIdentifier {
             name: "TApplicationException".to_owned(),
         })?;
@@ -283,7 +282,7 @@ impl error::Error for Error {
 }
 
 impl Debug for Error {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match *self {
             Error::Transport(ref e) => Debug::fmt(e, f),
             Error::Protocol(ref e) => Debug::fmt(e, f),
@@ -294,7 +293,7 @@ impl Debug for Error {
 }
 
 impl Display for Error {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match *self {
             Error::Transport(ref e) => Display::fmt(e, f),
             Error::Protocol(ref e) => Display::fmt(e, f),
@@ -362,7 +361,7 @@ impl TransportError {
     /// Create a new `TransportError`.
     pub fn new<S: Into<String>>(kind: TransportErrorKind, message: S) -> TransportError {
         TransportError {
-            kind: kind,
+            kind,
             message: message.into(),
         }
     }
@@ -404,7 +403,7 @@ impl TransportError {
 }
 
 impl Display for TransportError {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.description())
     }
 }
@@ -490,7 +489,7 @@ impl ProtocolError {
     /// Create a new `ProtocolError`.
     pub fn new<S: Into<String>>(kind: ProtocolErrorKind, message: S) -> ProtocolError {
         ProtocolError {
-            kind: kind,
+            kind,
             message: message.into(),
         }
     }
@@ -534,7 +533,7 @@ impl ProtocolError {
 }
 
 impl Display for ProtocolError {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.description())
     }
 }
@@ -581,7 +580,7 @@ impl ApplicationError {
     /// Create a new `ApplicationError`.
     pub fn new<S: Into<String>>(kind: ApplicationErrorKind, message: S) -> ApplicationError {
         ApplicationError {
-            kind: kind,
+            kind,
             message: message.into(),
         }
     }
@@ -638,7 +637,7 @@ impl ApplicationError {
 }
 
 impl Display for ApplicationError {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.description())
     }
 }

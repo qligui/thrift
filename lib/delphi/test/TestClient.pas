@@ -53,6 +53,8 @@ uses
   Thrift.Test,
   Thrift.WinHTTP,
   Thrift.Utils,
+
+  Thrift.Configuration,
   Thrift.Collections;
 
 type
@@ -93,7 +95,7 @@ type
       Normal,          // Fairly small array of usual size (256 bytes)
       ByteArrayTest,   // THRIFT-4454 Large writes/reads may cause range check errors in debug mode
       PipeWriteLimit,  // THRIFT-4372 Pipe write operations across a network are limited to 65,535 bytes per write.
-      TwentyMB         // that's quite a bit of data
+      FifteenMB        // quite a bit of data, but still below the default max frame size
     );
 
   private
@@ -122,7 +124,7 @@ type
 
     procedure InitializeProtocolTransportStack;
     procedure ShutdownProtocolTransportStack;
-    function  InitializeHttpTransport( const aTimeoutSetting : Integer) : IHTTPClient;
+    function  InitializeHttpTransport( const aTimeoutSetting : Integer; const aConfig : IThriftConfiguration = nil) : IHTTPClient;
 
     procedure JSONProtocolReadWriteTest;
     function  PrepareBinaryData( aRandomDist : Boolean; aSize : TTestSize) : TBytes;
@@ -148,7 +150,7 @@ type
     class procedure PrintCmdLineHelp;
     class procedure InvalidArgs;
   public
-    class function Execute( const args: array of string) : Byte;
+    class function Execute( const arguments: array of string) : Byte;
   end;
 
 
@@ -189,19 +191,17 @@ class procedure TTestClient.PrintCmdLineHelp;
 const HELPTEXT = ' [options]'#10
                + #10
                + 'Allowed options:'#10
-               + '  -h [ --help ]               produce help message'#10
-               + '  --host arg (=localhost)     Host to connect'#10
-               + '  --port arg (=9090)          Port number to connect'#10
-               + '  --domain-socket arg         Domain Socket (e.g. /tmp/ThriftTest.thrift),'#10
-               + '                              instead of host and port'#10
-               + '  --named-pipe arg            Windows Named Pipe (e.g. MyThriftPipe)'#10
-               + '  --anon-pipes hRead hWrite   Windows Anonymous Pipes pair (handles)'#10
-               + '  --transport arg (=sockets)  Transport: buffered, framed, http, winhttp'#10
-               + '  --protocol arg (=binary)    Protocol: binary, compact, json'#10
-               + '  --ssl                       Encrypted Transport using SSL'#10
-               + '  -n [ --testloops ] arg (=1) Number of Tests'#10
-               + '  -t [ --threads ] arg (=1)   Number of Test threads'#10
-               + '  --performance               Run the built-in performance test (no other arguments)'#10
+               + '  -h | --help                   Produces this help message'#10
+               + '  --host=arg (localhost)        Host to connect'#10
+               + '  --port=arg (9090)             Port number to connect'#10
+               + '  --pipe=arg                    Windows Named Pipe (e.g. MyThriftPipe)'#10
+               + '  --anon-pipes hRead hWrite     Windows Anonymous Pipes pair (handles)'#10
+               + '  --transport=arg (sockets)     Transport: buffered, framed, http, winhttp'#10
+               + '  --protocol=arg (binary)       Protocol: binary, compact, json'#10
+               + '  --ssl                         Encrypted Transport using SSL'#10
+               + '  -n=num | --testloops=num (1)  Number of Tests'#10
+               + '  -t=num | --threads=num (1)    Number of Test threads'#10
+               + '  --performance                 Run the built-in performance test (no other arguments)'#10
                ;
 begin
   Writeln( ChangeFileExt(ExtractFileName(ParamStr(0)),'') + HELPTEXT);
@@ -214,11 +214,22 @@ begin
   Abort;
 end;
 
-class function TTestClient.Execute(const args: array of string) : Byte;
+class function TTestClient.Execute(const arguments: array of string) : Byte;
+
+  function IsSwitch( const aArgument, aSwitch : string; out sValue : string) : Boolean;
+  begin
+    sValue := '';
+    result := (Copy( aArgument, 1, Length(aSwitch)) = aSwitch);
+    if result then begin
+      if (Copy( aArgument, 1, Length(aSwitch)+1) = (aSwitch+'='))
+      then sValue := Copy( aArgument, Length(aSwitch)+2, MAXINT);
+    end;
+  end;
+
 var
-  i : Integer;
+  iArg : Integer;
   threadExitCode : Byte;
-  s : string;
+  sArg, sValue : string;
   threads : array of TThread;
   dtStart : TDateTime;
   test : Integer;
@@ -239,92 +250,83 @@ begin
   end;
 
   try
-    i := 0;
-    while ( i < Length(args) ) do begin
-      s := args[i];
-      Inc( i);
+    iArg := 0;
+    while iArg < Length(arguments) do begin
+      sArg := arguments[iArg];
+      Inc(iArg);
 
-      if (s = '-h') or (s = '--help') then begin
+      if IsSwitch( sArg, '-h', sValue)
+      or IsSwitch( sArg, '--help', sValue)
+      then begin
         // -h [ --help ]               produce help message
         PrintCmdLineHelp;
         result := $FF;   // all tests failed
         Exit;
       end
-      else if s = '--host' then begin
+      else if IsSwitch( sArg, '--host', sValue) then begin
         // --host arg (=localhost)     Host to connect
-        setup.host := args[i];
-        Inc( i);
+        setup.host := sValue;
       end
-      else if s = '--port' then begin
+      else if IsSwitch( sArg, '--port', sValue) then begin
         // --port arg (=9090)          Port number to connect
-        s := args[i];
-        Inc( i);
-        setup.port := StrToIntDef(s,0);
+        setup.port := StrToIntDef(sValue,0);
         if setup.port <= 0 then InvalidArgs;
       end
-      else if s = '--domain-socket' then begin
+      else if IsSwitch( sArg, '--domain-socket', sValue) then begin
         // --domain-socket arg         Domain Socket (e.g. /tmp/ThriftTest.thrift), instead of host and port
         raise Exception.Create('domain-socket not supported');
       end
-      else if s = '--named-pipe' then begin
-        // --named-pipe arg            Windows Named Pipe (e.g. MyThriftPipe)
+        // --pipe arg                 Windows Named Pipe (e.g. MyThriftPipe)
+      else if IsSwitch( sArg, '--pipe', sValue) then begin
+        // --pipe arg                 Windows Named Pipe (e.g. MyThriftPipe)
         setup.endpoint := trns_NamedPipes;
-        setup.sPipeName := args[i];
-        Inc( i);
+        setup.sPipeName := sValue;
         Console.WriteLine('Using named pipe ('+setup.sPipeName+')');
       end
-      else if s = '--anon-pipes' then begin
+      else if IsSwitch( sArg, '--anon-pipes', sValue) then begin
         // --anon-pipes hRead hWrite   Windows Anonymous Pipes pair (handles)
         setup.endpoint := trns_AnonPipes;
-        setup.hAnonRead := THandle( StrToIntDef( args[i], Integer(INVALID_HANDLE_VALUE)));
-        Inc( i);
-        setup.hAnonWrite := THandle( StrToIntDef( args[i], Integer(INVALID_HANDLE_VALUE)));
-        Inc( i);
+        setup.hAnonRead := THandle( StrToIntDef( arguments[iArg], Integer(INVALID_HANDLE_VALUE)));
+        Inc(iArg);
+        setup.hAnonWrite := THandle( StrToIntDef( arguments[iArg], Integer(INVALID_HANDLE_VALUE)));
+        Inc(iArg);
         Console.WriteLine('Using anonymous pipes ('+IntToStr(Integer(setup.hAnonRead))+' and '+IntToStr(Integer(setup.hAnonWrite))+')');
       end
-      else if s = '--transport' then begin
+      else if IsSwitch( sArg, '--transport', sValue) then begin
         // --transport arg (=sockets)  Transport: buffered, framed, http, winhttp, evhttp
-        s := args[i];
-        Inc( i);
-
-        if      s = 'buffered' then Include( setup.layered, trns_Buffered)
-        else if s = 'framed'   then Include( setup.layered, trns_Framed)
-        else if s = 'http'     then setup.endpoint := trns_MsXmlHttp
-        else if s = 'winhttp'  then setup.endpoint := trns_WinHttp
-        else if s = 'evhttp'   then setup.endpoint := trns_EvHttp  // recognized, but not supported
+        if      sValue = 'buffered' then Include( setup.layered, trns_Buffered)
+        else if sValue = 'framed'   then Include( setup.layered, trns_Framed)
+        else if sValue = 'http'     then setup.endpoint := trns_MsXmlHttp
+        else if sValue = 'winhttp'  then setup.endpoint := trns_WinHttp
+        else if sValue = 'evhttp'   then setup.endpoint := trns_EvHttp  // recognized, but not supported
         else InvalidArgs;
       end
-      else if s = '--protocol' then begin
+      else if IsSwitch( sArg, '--protocol', sValue) then begin
         // --protocol arg (=binary)    Protocol: binary, compact, json
-        s := args[i];
-        Inc( i);
-
-        if      s = 'binary'   then setup.protType := prot_Binary
-        else if s = 'compact'  then setup.protType := prot_Compact
-        else if s = 'json'     then setup.protType := prot_JSON
+        if      sValue = 'binary'   then setup.protType := prot_Binary
+        else if sValue = 'compact'  then setup.protType := prot_Compact
+        else if sValue = 'json'     then setup.protType := prot_JSON
         else InvalidArgs;
       end
-      else if s = '--ssl' then begin
+      else if IsSwitch( sArg, '--ssl', sValue) then begin
         // --ssl                       Encrypted Transport using SSL
         setup.useSSL := TRUE;
 
       end
-      else if (s = '-n') or (s = '--testloops') then begin
+      else if IsSwitch( sArg, '-n', sValue) or IsSwitch( sArg, '--testloops', sValue) then begin
         // -n [ --testloops ] arg (=1) Number of Tests
-        FNumIteration := StrToIntDef( args[i], 0);
-        Inc( i);
+        FNumIteration := StrToIntDef( sValue, 0);
         if FNumIteration <= 0
         then InvalidArgs;
 
       end
-      else if (s = '-t') or (s = '--threads') then begin
+      else if IsSwitch( sArg, '-t', sValue) or IsSwitch( sArg, '--threads', sValue) then begin
         // -t [ --threads ] arg (=1)   Number of Test threads
-        FNumThread := StrToIntDef( args[i], 0);
-        Inc( i);
+        FNumThread := StrToIntDef( sValue, 0);
         if FNumThread <= 0
         then InvalidArgs;
       end
-      else if (s = '--performance') then begin
+      else if IsSwitch( sArg, '--performance', sValue) then begin
         result := TPerformanceTests.Execute;
         Exit;
       end
@@ -1024,7 +1026,7 @@ begin
     Normal         : SetLength( result, $100);
     ByteArrayTest  : SetLength( result, SizeOf(TByteArray) + 128);
     PipeWriteLimit : SetLength( result, 65535 + 128);
-    TwentyMB       : SetLength( result, 20 * 1024 * 1024);
+    FifteenMB      : SetLength( result, 15 * 1024 * 1024);
   else
     raise EArgumentException.Create('aSize');
   end;
@@ -1068,6 +1070,7 @@ procedure TClientThread.JSONProtocolReadWriteTest;
 var prot   : IProtocol;
     stm    : TStringStream;
     list   : TThriftList;
+    config : IThriftConfiguration;
     binary, binRead, emptyBinary : TBytes;
     i,iErr : Integer;
 const
@@ -1089,6 +1092,8 @@ begin
   try
     StartTestGroup( 'JsonProtocolTest', test_Unknown);
 
+    config := TThriftConfigurationImpl.Create;
+
     // prepare binary data
     binary := PrepareBinaryData( FALSE, Normal);
     SetLength( emptyBinary, 0); // empty binary data block
@@ -1096,7 +1101,7 @@ begin
     // output setup
     prot := TJSONProtocolImpl.Create(
               TStreamTransportImpl.Create(
-                nil, TThriftStreamAdapterDelphi.Create( stm, FALSE)));
+                nil, TThriftStreamAdapterDelphi.Create( stm, FALSE), config));
 
     // write
     Init( list, TType.String_, 9);
@@ -1119,7 +1124,7 @@ begin
     stm.Position := 0;
     prot := TJSONProtocolImpl.Create(
               TStreamTransportImpl.Create(
-                TThriftStreamAdapterDelphi.Create( stm, FALSE), nil));
+                TThriftStreamAdapterDelphi.Create( stm, FALSE), nil, config));
 
     // read and compare
     list := prot.ReadListBegin;
@@ -1161,7 +1166,7 @@ begin
     stm.Position := 0;
     prot := TJSONProtocolImpl.Create(
               TStreamTransportImpl.Create(
-                TThriftStreamAdapterDelphi.Create( stm, FALSE), nil));
+                TThriftStreamAdapterDelphi.Create( stm, FALSE), nil, config));
     Expect( prot.ReadString = SOLIDUS_EXCPECTED, 'Solidus encoding');
 
 
@@ -1172,12 +1177,12 @@ begin
     stm.Size     := 0;
     prot := TJSONProtocolImpl.Create(
               TStreamTransportImpl.Create(
-                nil, TThriftStreamAdapterDelphi.Create( stm, FALSE)));
+                nil, TThriftStreamAdapterDelphi.Create( stm, FALSE), config));
     prot.WriteString( G_CLEF_AND_CYRILLIC_TEXT);
     stm.Position := 0;
     prot := TJSONProtocolImpl.Create(
               TStreamTransportImpl.Create(
-                TThriftStreamAdapterDelphi.Create( stm, FALSE), nil));
+                TThriftStreamAdapterDelphi.Create( stm, FALSE), nil, config));
     Expect( prot.ReadString = G_CLEF_AND_CYRILLIC_TEXT, 'Writing JSON with chars > 8 bit');
 
     // Widechars should work with hex-encoding too. Do they?
@@ -1187,7 +1192,7 @@ begin
     stm.Position := 0;
     prot := TJSONProtocolImpl.Create(
               TStreamTransportImpl.Create(
-                TThriftStreamAdapterDelphi.Create( stm, FALSE), nil));
+                TThriftStreamAdapterDelphi.Create( stm, FALSE), nil, config));
     Expect( prot.ReadString = G_CLEF_AND_CYRILLIC_TEXT, 'Reading JSON with chars > 8 bit');
 
 
@@ -1330,7 +1335,7 @@ begin
 end;
 
 
-function TClientThread.InitializeHttpTransport( const aTimeoutSetting : Integer) : IHTTPClient;
+function TClientThread.InitializeHttpTransport( const aTimeoutSetting : Integer; const aConfig : IThriftConfiguration) : IHTTPClient;
 var sUrl    : string;
     comps   : URL_COMPONENTS;
     dwChars : DWORD;
@@ -1367,8 +1372,8 @@ begin
 
   Console.WriteLine('Target URL: '+sUrl);
   case FSetup.endpoint of
-    trns_MsxmlHttp :  result := TMsxmlHTTPClientImpl.Create( sUrl);
-    trns_WinHttp   :  result := TWinHTTPClientImpl.Create( sUrl);
+    trns_MsxmlHttp :  result := TMsxmlHTTPClientImpl.Create( sUrl, aConfig);
+    trns_WinHttp   :  result := TWinHTTPClientImpl.Create(   sUrl, aConfig);
   else
     raise Exception.Create(ENDPOINT_TRANSPORTS[FSetup.endpoint]+' unhandled case');
   end;
@@ -1396,7 +1401,7 @@ begin
   case FSetup.endpoint of
     trns_Sockets: begin
       Console.WriteLine('Using sockets ('+FSetup.host+' port '+IntToStr(FSetup.port)+')');
-      streamtrans := TSocketImpl.Create( FSetup.host, FSetup.port );
+      streamtrans := TSocketImpl.Create( FSetup.host, FSetup.port);
       FTransport := streamtrans;
     end;
 
@@ -1417,7 +1422,7 @@ begin
     end;
 
     trns_AnonPipes: begin
-      streamtrans := TAnonymousPipeTransportImpl.Create( FSetup.hAnonRead, FSetup.hAnonWrite, FALSE);
+      streamtrans := TAnonymousPipeTransportImpl.Create( FSetup.hAnonRead, FSetup.hAnonWrite, FALSE, PIPE_TIMEOUT);
       FTransport := streamtrans;
     end;
 

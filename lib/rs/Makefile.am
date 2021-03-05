@@ -31,9 +31,11 @@ install:
 	@echo '##############################################################'
 
 check-local:
+	$(CARGO) fmt --all -- --check
 	$(CARGO) test
 
 all-local:
+	$(CARGO) fmt --all -- --check
 	$(CARGO) build
 
 clean-local:
@@ -43,4 +45,7 @@ clean-local:
 EXTRA_DIST = \
 	src \
 	Cargo.toml \
-	README.md
+	README.md \
+	release.sh \
+	RELEASING.md
+

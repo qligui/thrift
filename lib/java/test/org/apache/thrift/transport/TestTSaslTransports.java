@@ -40,6 +40,7 @@ import javax.security.sasl.SaslServerFactory;
 
 import junit.framework.TestCase;
 
+import org.apache.thrift.TConfiguration;
 import org.apache.thrift.TProcessor;
 import org.apache.thrift.protocol.TProtocolFactory;
 import org.apache.thrift.server.ServerTestBase;
@@ -53,17 +54,17 @@ public class TestTSaslTransports extends TestCase {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(TestTSaslTransports.class);
 
-  private static final String HOST = "localhost";
-  private static final String SERVICE = "thrift-test";
-  private static final String PRINCIPAL = "thrift-test-principal";
-  private static final String PASSWORD = "super secret password";
-  private static final String REALM = "thrift-test-realm";
+  public static final String HOST = "localhost";
+  public static final String SERVICE = "thrift-test";
+  public static final String PRINCIPAL = "thrift-test-principal";
+  public static final String PASSWORD = "super secret password";
+  public static final String REALM = "thrift-test-realm";
 
-  private static final String UNWRAPPED_MECHANISM = "CRAM-MD5";
-  private static final Map<String, String> UNWRAPPED_PROPS = null;
+  public static final String UNWRAPPED_MECHANISM = "CRAM-MD5";
+  public static final Map<String, String> UNWRAPPED_PROPS = null;
 
-  private static final String WRAPPED_MECHANISM = "DIGEST-MD5";
-  private static final Map<String, String> WRAPPED_PROPS = new HashMap<String, String>();
+  public static final String WRAPPED_MECHANISM = "DIGEST-MD5";
+  public static final Map<String, String> WRAPPED_PROPS = new HashMap<String, String>();
 
   static {
     WRAPPED_PROPS.put(Sasl.QOP, "auth-int");
@@ -80,7 +81,7 @@ public class TestTSaslTransports extends TestCase {
       + "'We hold these truths to be self-evident, that all men are created equal.'";
 
 
-  private static class TestSaslCallbackHandler implements CallbackHandler {
+  public static class TestSaslCallbackHandler implements CallbackHandler {
     private final String password;
 
     public TestSaslCallbackHandler(String password) {
@@ -265,7 +266,7 @@ public class TestTSaslTransports extends TestCase {
     new TestTSaslTransportsWithServer().testIt();
   }
 
-  private static class TestTSaslTransportsWithServer extends ServerTestBase {
+  public static class TestTSaslTransportsWithServer extends ServerTestBase {
 
     private Thread serverThread;
     private TServer server;
@@ -409,9 +410,10 @@ public class TestTSaslTransports extends TestCase {
   private static class MockTTransport extends TTransport {
 
     byte[] badHeader = null;
-    private TMemoryInputTransport readBuffer = new TMemoryInputTransport();
+    private TMemoryInputTransport readBuffer;
 
-    public MockTTransport(int mode) {
+    public MockTTransport(int mode) throws TTransportException {
+      readBuffer = new TMemoryInputTransport();
       if (mode==1) {
         // Invalid status byte
         badHeader = new byte[] { (byte)0xFF, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x05 };
@@ -443,25 +445,41 @@ public class TestTSaslTransports extends TestCase {
 
     @Override
     public void write(byte[] buf, int off, int len) throws TTransportException {}
+
+    @Override
+    public TConfiguration getConfiguration() {
+      return readBuffer.getConfiguration();
+    }
+
+    @Override
+    public void updateKnownMessageSize(long size) throws TTransportException {
+      readBuffer.updateKnownMessageSize(size);
+    }
+
+    @Override
+    public void checkReadBytesAvailable(long numBytes) throws TTransportException {
+      readBuffer.checkReadBytesAvailable(numBytes);
+    }
   }
 
   public void testBadHeader() {
-    TSaslTransport saslTransport = new TSaslServerTransport(new MockTTransport(1));
+    TSaslTransport saslTransport;
     try {
+      saslTransport = new TSaslServerTransport(new MockTTransport(1));
       saslTransport.receiveSaslMessage();
       fail("Should have gotten an error due to incorrect status byte value.");
     } catch (TTransportException e) {
       assertEquals(e.getMessage(), "Invalid status -1");
     }
-    saslTransport = new TSaslServerTransport(new MockTTransport(2));
     try {
+      saslTransport = new TSaslServerTransport(new MockTTransport(2));
       saslTransport.receiveSaslMessage();
       fail("Should have gotten an error due to negative payload length.");
     } catch (TTransportException e) {
       assertEquals(e.getMessage(), "Invalid payload header length: -1");
     }
-    saslTransport = new TSaslServerTransport(new MockTTransport(3));
     try {
+      saslTransport = new TSaslServerTransport(new MockTTransport(3));
       saslTransport.receiveSaslMessage();
       fail("Should have gotten an error due to bogus (large) payload length.");
     } catch (TTransportException e) {

@@ -492,7 +492,11 @@ void TNonblockingServer::TConnection::workSocket() {
 
   case SOCKET_RECV:
     // It is an error to be in this state if we already have all the data
-    assert(readBufferPos_ < readWant_);
+    if (!(readBufferPos_ < readWant_)) {
+      GlobalOutput.printf("TNonblockingServer: frame size too short");
+      close();
+      return;
+    }
 
     try {
       // Read from the socket
@@ -1337,7 +1341,7 @@ bool TNonblockingIOThread::notify(TNonblockingServer::TConnection* conn) {
     FD_ZERO(&efds);
     FD_SET(fd, &wfds);
     FD_SET(fd, &efds);
-    ret = select(static_cast<int>(fd + 1), NULL, &wfds, &efds, NULL);
+    ret = select(static_cast<int>(fd + 1), nullptr, &wfds, &efds, nullptr);
     if (ret < 0) {
       return false;
     } else if (ret == 0) {

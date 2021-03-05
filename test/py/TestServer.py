@@ -175,7 +175,7 @@ class TestHandler(object):
 
     def testMulti(self, arg0, arg1, arg2, arg3, arg4, arg5):
         if options.verbose > 1:
-            logging.info('testMulti(%s)' % [arg0, arg1, arg2, arg3, arg4, arg5])
+            logging.info('testMulti(%s, %s, %s, %s, %s, %s)' % (arg0, arg1, arg2, arg3, arg4, arg5))
         return Xtruct(string_thing='Hello2',
                       byte_thing=arg0, i32_thing=arg1, i64_thing=arg2)
 
@@ -307,7 +307,7 @@ def main(options):
         from thrift.transport import TSSLSocket
         transport = TSSLSocket.TSSLServerSocket(host, options.port, certfile=abs_key_path)
     else:
-        transport = TSocket.TServerSocket(host, options.port)
+        transport = TSocket.TServerSocket(host, options.port, options.domain_socket)
     tfactory = TTransport.TBufferedTransportFactory()
     if options.trans == 'buffered':
         tfactory = TTransport.TBufferedTransportFactory()
@@ -385,6 +385,8 @@ if __name__ == '__main__':
                       help="protocol to use, one of: accel, accelc, binary, compact, json, multi, multia, multiac, multic, multih, multij")
     parser.add_option('--transport', dest="trans", type="string",
                       help="transport to use, one of: buffered, framed, http")
+    parser.add_option('--domain-socket', dest="domain_socket", type="string",
+                      help="Unix domain socket path")
     parser.add_option('--container-limit', dest='container_limit', type='int', default=None)
     parser.add_option('--string-limit', dest='string_limit', type='int', default=None)
     parser.set_defaults(port=9090, verbose=1, proto='binary', transport='buffered')

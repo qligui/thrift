@@ -17,6 +17,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using ThriftTest;
 
 namespace Client
@@ -25,46 +26,42 @@ namespace Client
     {
         public static int Main(string[] args)
         {
-            try
-            {
-                Console.SetBufferSize(Console.BufferWidth, 4096);
-            }
-            catch (Exception)
-            {
-                Console.WriteLine("Failed to grow scroll-back buffer");
-            }
-
-            // split mode and options
-            var subArgs = new List<string>(args);
-            var firstArg = string.Empty;
-            if (subArgs.Count > 0)
+            if (OperatingSystem.IsWindows())
             { 
-                firstArg = subArgs[0];
-                subArgs.RemoveAt(0);
+                try
+                {
+                    Console.SetBufferSize(Console.BufferWidth, 4096);
+                }
+                catch (Exception)
+                {
+                    Console.WriteLine("Failed to grow scroll-back buffer");
+                }
             }
 
-            // run whatever mode is choosen
-            switch(firstArg)
+            // run whatever mode is choosen, default to test impl
+            var argslist = new List<string>(args);
+            switch (argslist.FirstOrDefault())
             {
-                case "client":
-                    return TestClient.Execute(subArgs);
-                case "performance":
+                case "client":  // crosstest wants to pass this, so just emit a hint and ignore
+                    Console.WriteLine("Hint: The 'client' argument is no longer required.");
+                    argslist.RemoveAt(0);
+                    return TestClient.Execute(argslist);
+                case "--performance":
+                case "--performance-test":
                     return Tests.PerformanceTests.Execute();
                 case "--help":
                     PrintHelp();
                     return 0;
                 default:
-                    Console.WriteLine("Invalid argument: {0}", firstArg);
-                    PrintHelp();
-                    return -1;
+                    return TestClient.Execute(argslist);
             }
         }
 
         private static void PrintHelp()
         {
             Console.WriteLine("Usage:");
-            Console.WriteLine("  Client  client  [options]");
-            Console.WriteLine("  Client  performance");
+            Console.WriteLine("  Client  [options]");
+            Console.WriteLine("  Client  --performance-test");
             Console.WriteLine("  Client  --help");
             Console.WriteLine("");
 

@@ -305,7 +305,7 @@ public:
                                         t_type* type);
 
   enum isset_type { ISSET_NONE, ISSET_PRIMITIVE, ISSET_BITSET };
-  isset_type needs_isset(t_struct* tstruct, std::string* outPrimitiveType = NULL);
+  isset_type needs_isset(t_struct* tstruct, std::string* outPrimitiveType = nullptr);
 
   /**
    * Helper rendering functions
@@ -648,13 +648,13 @@ void t_java_generator::print_const_value(std::ostream& out,
       indent_up();
     }
     for (v_iter = val.begin(); v_iter != val.end(); ++v_iter) {
-      t_type* field_type = NULL;
+      t_type* field_type = nullptr;
       for (f_iter = fields.begin(); f_iter != fields.end(); ++f_iter) {
         if ((*f_iter)->get_name() == v_iter->first->get_string()) {
           field_type = (*f_iter)->get_type();
         }
       }
-      if (field_type == NULL) {
+      if (field_type == nullptr) {
         throw "type error: " + type->get_name() + " has no field " + v_iter->first->get_string();
       }
       string val = render_const_value(out, field_type, v_iter->second);
@@ -911,7 +911,7 @@ void t_java_generator::generate_union_constructor(ostream& out, t_struct* tstruc
   bool default_value = false;
   for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
     t_type* type = get_true_type((*m_iter)->get_type());
-    if ((*m_iter)->get_value() != NULL) {
+    if ((*m_iter)->get_value() != nullptr) {
       indent(out) << "super(_Fields." << constant_name((*m_iter)->get_name()) << ", "
                   << render_const_value(out, type, (*m_iter)->get_value()) << ");" << endl;
       default_value = true;
@@ -1060,11 +1060,15 @@ void t_java_generator::generate_union_getters_and_setters(ostream& out, t_struct
     }
     indent(out) << "public void set" << get_cap_name(field->get_name()) << "("
                 << type_name(field->get_type()) << " value) {" << endl;
-    if (type_can_be_null(field->get_type())) {
-      indent(out) << "  if (value == null) throw new java.lang.NullPointerException();" << endl;
-    }
+
     indent(out) << "  setField_ = _Fields." << constant_name(field->get_name()) << ";" << endl;
-    indent(out) << "  value_ = value;" << endl;
+
+    if (type_can_be_null(field->get_type())) {
+      indent(out) << "  value_ = java.util.Objects.requireNonNull(value,\"" << "_Fields." << constant_name(field->get_name()) << "\");" << endl;
+    } else {
+      indent(out) << "  value_ = value;" << endl;
+    }
+
     indent(out) << "}" << endl;
   }
 }
@@ -1542,7 +1546,7 @@ void t_java_generator::generate_java_struct_definition(ostream& out,
   indent_up();
   for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
     t_type* t = get_true_type((*m_iter)->get_type());
-    if ((*m_iter)->get_value() != NULL) {
+    if ((*m_iter)->get_value() != nullptr) {
       print_const_value(out,
                         "this." + (*m_iter)->get_name(),
                         t,
@@ -1908,8 +1912,7 @@ void t_java_generator::generate_java_struct_equality(ostream& out, t_struct* tst
   out << indent() << "@Override" << endl << indent() << "public boolean equals(java.lang.Object that) {"
       << endl;
   indent_up();
-  out << indent() << "if (that == null)" << endl << indent() << "  return false;" << endl
-      << indent() << "if (that instanceof " << tstruct->get_name() << ")" << endl << indent()
+  out << indent() << "if (that instanceof " << tstruct->get_name() << ")" << endl << indent()
       << "  return this.equals((" << tstruct->get_name() << ")that);" << endl << indent()
       << "return false;" << endl;
   scope_down(out);
@@ -2052,8 +2055,8 @@ void t_java_generator::generate_java_struct_compare_to(ostream& out, t_struct* t
   vector<t_field*>::const_iterator m_iter;
   for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
     t_field* field = *m_iter;
-    indent(out) << "lastComparison = java.lang.Boolean.valueOf(" << generate_isset_check(field)
-                << ").compareTo(other." << generate_isset_check(field) << ");" << endl;
+    indent(out) << "lastComparison = java.lang.Boolean.compare(" << generate_isset_check(field)
+                << ", other." << generate_isset_check(field) << ");" << endl;
     indent(out) << "if (lastComparison != 0) {" << endl;
     indent(out) << "  return lastComparison;" << endl;
     indent(out) << "}" << endl;
@@ -2523,7 +2526,7 @@ void t_java_generator::generate_java_bean_boilerplate(ostream& out, t_struct* ts
       }else{
         indent(out) << " : java.nio.ByteBuffer.wrap(" << field_name << ".clone());" << endl;
       }
-                 
+
       if (!bean_style_) {
         indent(out) << "  return this;" << endl;
       }
@@ -2879,7 +2882,7 @@ void t_java_generator::generate_service(t_service* tservice) {
 void t_java_generator::generate_service_interface(t_service* tservice) {
   string extends = "";
   string extends_iface = "";
-  if (tservice->get_extends() != NULL) {
+  if (tservice->get_extends() != nullptr) {
     extends = type_name(tservice->get_extends());
     extends_iface = " extends " + extends + ".Iface";
   }
@@ -2900,7 +2903,7 @@ void t_java_generator::generate_service_interface(t_service* tservice) {
 void t_java_generator::generate_service_async_interface(t_service* tservice) {
   string extends = "";
   string extends_iface = "";
-  if (tservice->get_extends() != NULL) {
+  if (tservice->get_extends() != nullptr) {
     extends = type_name(tservice->get_extends());
     extends_iface = " extends " + extends + " .AsyncIface";
   }
@@ -2940,7 +2943,7 @@ void t_java_generator::generate_service_helpers(t_service* tservice) {
 void t_java_generator::generate_service_client(t_service* tservice) {
   string extends = "";
   string extends_client = "";
-  if (tservice->get_extends() == NULL) {
+  if (tservice->get_extends() == nullptr) {
     extends_client = "org.apache.thrift.TServiceClient";
   } else {
     extends = type_name(tservice->get_extends());
@@ -3103,7 +3106,7 @@ void t_java_generator::generate_service_client(t_service* tservice) {
 void t_java_generator::generate_service_async_client(t_service* tservice) {
   string extends = "org.apache.thrift.async.TAsyncClient";
   string extends_client = "";
-  if (tservice->get_extends() != NULL) {
+  if (tservice->get_extends() != nullptr) {
     extends = type_name(tservice->get_extends()) + ".AsyncClient";
   }
 
@@ -3279,7 +3282,7 @@ void t_java_generator::generate_service_server(t_service* tservice) {
   // Extends stuff
   string extends = "";
   string extends_processor = "";
-  if (tservice->get_extends() == NULL) {
+  if (tservice->get_extends() == nullptr) {
     extends_processor = "org.apache.thrift.TBaseProcessor<I>";
   } else {
     extends = type_name(tservice->get_extends());
@@ -3342,7 +3345,7 @@ void t_java_generator::generate_service_async_server(t_service* tservice) {
   // Extends stuff
   string extends = "";
   string extends_processor = "";
-  if (tservice->get_extends() == NULL) {
+  if (tservice->get_extends() == nullptr) {
     extends_processor = "org.apache.thrift.TBaseAsyncProcessor<I>";
   } else {
     extends = type_name(tservice->get_extends());
@@ -3858,19 +3861,18 @@ void t_java_generator::generate_deserialize_container(ostream& out,
     // Declare variables, read header
     if (ttype->is_map()) {
       indent(out) << "org.apache.thrift.protocol.TMap " << obj
-                  << " = new org.apache.thrift.protocol.TMap("
+                  << " = iprot.readMapBegin("
                   << type_to_enum(((t_map*)ttype)->get_key_type()) << ", "
-                  << type_to_enum(((t_map*)ttype)->get_val_type()) << ", "
-                  << "iprot.readI32());" << endl;
+                  << type_to_enum(((t_map*)ttype)->get_val_type()) << "); "<< endl;
     } else if (ttype->is_set()) {
       indent(out) << "org.apache.thrift.protocol.TSet " << obj
-                  << " = new org.apache.thrift.protocol.TSet("
-                  << type_to_enum(((t_set*)ttype)->get_elem_type()) << ", iprot.readI32());"
+                  << " = iprot.readSetBegin("
+                  << type_to_enum(((t_set*)ttype)->get_elem_type()) << ");"
                   << endl;
     } else if (ttype->is_list()) {
       indent(out) << "org.apache.thrift.protocol.TList " << obj
-                  << " = new org.apache.thrift.protocol.TList("
-                  << type_to_enum(((t_list*)ttype)->get_elem_type()) << ", iprot.readI32());"
+                  << " = iprot.readListBegin("
+                  << type_to_enum(((t_list*)ttype)->get_elem_type()) << ");"
                   << endl;
     }
   }
@@ -4296,7 +4298,7 @@ string t_java_generator::type_name(t_type* ttype,
 
   // Check for namespacing
   t_program* program = ttype->get_program();
-  if ((program != NULL) && ((program != program_) || force_namespace)) {
+  if ((program != nullptr) && ((program != program_) || force_namespace)) {
     string package = program->get_namespace("java");
     if (!package.empty()) {
       return package + "." + ttype->get_name();
@@ -4356,7 +4358,7 @@ string t_java_generator::declare_field(t_field* tfield, bool init, bool comment)
   }
   result += type_name(tfield->get_type()) + " " + tfield->get_name();
   if (init) {
-    if (ttype->is_base_type() && tfield->get_value() != NULL) {
+    if (ttype->is_base_type() && tfield->get_value() != nullptr) {
       std::ofstream dummy;
       result += " = " + render_const_value(dummy, ttype, tfield->get_value());
     } else if (ttype->is_base_type()) {
@@ -4995,7 +4997,7 @@ t_java_generator::isset_type t_java_generator::needs_isset(t_struct* tstruct,
   if (count == 0) {
     return ISSET_NONE;
   } else if (count <= 64) {
-    if (outPrimitiveType != NULL) {
+    if (outPrimitiveType != nullptr) {
       if (count <= 8)
         *outPrimitiveType = "byte";
       else if (count <= 16)
@@ -5025,7 +5027,7 @@ void t_java_generator::generate_java_struct_clear(std::ostream& out, t_struct* t
     t_field* field = *m_iter;
     t_type* t = get_true_type(field->get_type());
 
-    if (field->get_value() != NULL) {
+    if (field->get_value() != nullptr) {
       print_const_value(out, "this." + field->get_name(), t, field->get_value(), true, true);
       continue;
     }
@@ -5417,7 +5419,7 @@ void t_java_generator::generate_java_scheme_lookup(ostream& out) {
 }
 
 void t_java_generator::generate_javax_generated_annotation(ostream& out) {
-  time_t seconds = time(NULL);
+  time_t seconds = time(nullptr);
   struct tm* now = localtime(&seconds);
   indent(out) << "@javax.annotation.Generated(value = \"" << autogen_summary() << "\"";
   if (undated_generated_annotations_) {
@@ -5442,7 +5444,7 @@ THRIFT_REGISTER_GENERATOR(
     "above).\n"
     "    option_type:     Wrap optional fields in an Option type.\n"
     "    rethrow_unhandled_exceptions:\n"
-    "                     Enable rethrow of unhandled exceptions and let them propagate futher."
+    "                     Enable rethrow of unhandled exceptions and let them propagate further."
     " (Default behavior is to catch and log it.)\n"
     "    java5:           Generate Java 1.5 compliant code (includes android_legacy flag).\n"
     "    reuse-objects:   Data objects will not be allocated, but existing instances will be used "
